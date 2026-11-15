@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type HTMLAttributes,
 } from "react"
@@ -378,6 +379,8 @@ export default function Home() {
   const [products, setProducts] = useState<Producto[]>([])
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
   const [filter, setFilter] = useState<Filter>("Todos")
+  const [addedProductId, setAddedProductId] = useState<string | null>(null)
+  const addedTimerRef = useRef<number | null>(null)
 
   const openCart = useCallback(() => setCartOpen(true), [])
   const closeCart = useCallback(() => setCartOpen(false), [])
@@ -402,6 +405,9 @@ export default function Home() {
 
     return () => {
       cancelled = true
+      if (addedTimerRef.current !== null) {
+        window.clearTimeout(addedTimerRef.current)
+      }
     }
   }, [])
 
@@ -437,7 +443,15 @@ export default function Home() {
         },
       ]
     })
-    setCartOpen(true)
+
+    setAddedProductId(id)
+    if (addedTimerRef.current !== null) {
+      window.clearTimeout(addedTimerRef.current)
+    }
+    addedTimerRef.current = window.setTimeout(() => {
+      setAddedProductId(null)
+      addedTimerRef.current = null
+    }, 1500)
   }, [])
 
   const increaseItem = useCallback((id: string) => {
@@ -596,6 +610,8 @@ export default function Home() {
             <ul className="mt-14 grid grid-cols-1 gap-x-7 gap-y-14 sm:grid-cols-2 lg:grid-cols-4">
               {visibleProducts.map((product, index) => {
                 const price = Number(product.Precio)
+                const id = productId(product)
+                const justAdded = addedProductId === id
                 return (
                   <li key={`${product.Nombre}-${index}`} className="group flex flex-col">
                     <div className="relative overflow-hidden bg-[#ECE7E1]">
@@ -638,9 +654,14 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={() => addToCart(product)}
-                      className="mt-5 bg-[#111111] px-4 py-3 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#8B1E24] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
+                      aria-live="polite"
+                      className={`mt-5 px-4 py-3 text-[11px] font-medium uppercase tracking-[0.25em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111] ${
+                        justAdded
+                          ? "bg-[#B89768] text-white"
+                          : "bg-[#111111] text-white hover:bg-[#8B1E24]"
+                      }`}
                     >
-                      Añadir a la bolsa
+                      {justAdded ? "Añadido ✓" : "Añadir a la bolsa"}
                     </button>
                   </li>
                 )
