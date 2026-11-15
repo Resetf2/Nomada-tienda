@@ -19,6 +19,14 @@ type Producto = {
   imagen_url: string | null
 }
 
+type CartItem = {
+  id: string
+  name: string
+  price: number
+  image: string | null
+  quantity: number
+}
+
 type Filter = (typeof filters)[number]
 
 const mxn = new Intl.NumberFormat("es-MX", {
@@ -33,6 +41,10 @@ const toneSwatches = [
   { name: "Terracota", color: "#A65A3A" },
 ]
 
+function productId(product: Producto) {
+  return `${product.Nombre}::${product.Precio}::${product.imagen_url ?? ""}`
+}
+
 function matchesFilter(product: Producto, filter: Filter) {
   if (filter === "Todos") return true
   const haystack = `${product.Nombre} ${product.Beneficio ?? ""}`.toLowerCase()
@@ -45,7 +57,13 @@ function matchesFilter(product: Producto, filter: Filter) {
   return map[filter].some((keyword) => haystack.includes(keyword))
 }
 
-function Navbar({ cartCount }: { cartCount: number }) {
+function Navbar({
+  cartCount,
+  onOpenCart,
+}: {
+  cartCount: number
+  onOpenCart: () => void
+}) {
   const [open, setOpen] = useState(false)
   const active = "Inicio"
 
@@ -90,6 +108,7 @@ function Navbar({ cartCount }: { cartCount: number }) {
         <div className="flex flex-1 items-center justify-end gap-1">
           <button
             type="button"
+            onClick={onOpenCart}
             aria-label={`Bolsa de compras, ${cartCount} ${cartCount === 1 ? "producto" : "productos"}`}
             className="relative grid size-10 place-items-center text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
           >
@@ -142,8 +161,205 @@ function Navbar({ cartCount }: { cartCount: number }) {
   )
 }
 
+function CartDrawer({
+  open,
+  items,
+  onClose,
+  onIncrease,
+  onDecrease,
+  onRemove,
+}: {
+  open: boolean
+  items: CartItem[]
+  onClose: () => void
+  onIncrease: (id: string) => void
+  onDecrease: (id: string) => void
+  onRemove: (id: string) => void
+}) {
+  const itemCount = items.reduce((sum, item) => sum + item.quantity, 0)
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  useEffect(() => {
+    if (!open) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    window.addEventListener("keydown", onKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener("keydown", onKeyDown)
+    }
+  }, [open, onClose])
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 ${open ? "pointer-events-auto" : "pointer-events-none"}`}
+      aria-hidden={!open}
+      inert={!open ? true : undefined}
+    >
+      <button
+        type="button"
+        tabIndex={open ? 0 : -1}
+        aria-label="Cerrar bolsa"
+        onClick={onClose}
+        className={`absolute inset-0 bg-[#111111]/40 transition-opacity duration-300 ${
+          open ? "opacity-100" : "opacity-0"
+        }`}
+      />
+
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cart-title"
+        className={`absolute inset-y-0 right-0 flex w-full max-w-[420px] flex-col bg-[#FAF8F6] shadow-[-24px_0_60px_rgba(17,17,17,0.12)] transition-transform duration-300 ease-out ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-[#111111]/10 px-6 py-5">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">Bolsa</p>
+            <h2
+              id="cart-title"
+              className="mt-1 [font-family:var(--font-playfair),Georgia,serif] text-2xl text-[#111111]"
+            >
+              Tu selección
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar bolsa"
+            className="grid size-10 place-items-center text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6 6 18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+          {items.length === 0 ? (
+            <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center">
+              <p className="[font-family:var(--font-playfair),Georgia,serif] text-xl text-[#111111]">
+                Tu bolsa está vacía
+              </p>
+              <p className="mt-3 max-w-[220px] text-sm leading-relaxed text-[#111111]/55">
+                Explora la colección y añade piezas de alta cosmética.
+              </p>
+              <button
+                type="button"
+                onClick={onClose}
+                className="mt-8 border border-[#111111] px-6 py-3 text-[11px] font-medium uppercase tracking-[0.25em] text-[#111111] transition-colors hover:border-[#B89768] hover:text-[#B89768]"
+              >
+                Seguir explorando
+              </button>
+            </div>
+          ) : (
+            <ul className="space-y-6">
+              {items.map((item) => (
+                <li key={item.id} className="flex gap-4 border-b border-[#111111]/8 pb-6 last:border-b-0">
+                  <div className="size-24 shrink-0 overflow-hidden bg-[#ECE7E1]">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-[#E5DFD7]" />
+                    )}
+                  </div>
+
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="[font-family:var(--font-playfair),Georgia,serif] text-lg leading-snug text-[#111111]">
+                        {item.name}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(item.id)}
+                        aria-label={`Quitar ${item.name}`}
+                        className="text-[10px] uppercase tracking-[0.2em] text-[#111111]/45 transition-colors hover:text-[#8B1E24]"
+                      >
+                        Quitar
+                      </button>
+                    </div>
+
+                    <p className="mt-2 text-[12px] uppercase tracking-[0.2em] text-[#111111]">
+                      {mxn.format(item.price)} MXN
+                    </p>
+
+                    <div className="mt-auto flex items-center justify-between pt-4">
+                      <div className="inline-flex items-center border border-[#111111]/15">
+                        <button
+                          type="button"
+                          onClick={() => onDecrease(item.id)}
+                          aria-label={`Reducir cantidad de ${item.name}`}
+                          className="grid size-9 place-items-center text-[#111111] transition-colors hover:bg-[#111111] hover:text-white"
+                        >
+                          −
+                        </button>
+                        <span className="min-w-10 text-center text-[12px] tracking-[0.15em] text-[#111111]">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onIncrease(item.id)}
+                          aria-label={`Aumentar cantidad de ${item.name}`}
+                          className="grid size-9 place-items-center text-[#111111] transition-colors hover:bg-[#111111] hover:text-white"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <p className="text-[12px] uppercase tracking-[0.15em] text-[#111111]/70">
+                        {mxn.format(item.price * item.quantity)} MXN
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="border-t border-[#111111]/10 px-6 py-6">
+          <div className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">
+                {itemCount} {itemCount === 1 ? "pieza" : "piezas"}
+              </p>
+              <p className="mt-2 text-[11px] uppercase tracking-[0.2em] text-[#111111]/55">
+                Subtotal
+              </p>
+            </div>
+            <p className="[font-family:var(--font-playfair),Georgia,serif] text-2xl text-[#111111]">
+              {mxn.format(subtotal)} MXN
+            </p>
+          </div>
+          <p className="mt-3 text-[12px] leading-relaxed text-[#111111]/50">
+            Envío cortesía en compras desde $999 MXN.
+          </p>
+          <button
+            type="button"
+            disabled={items.length === 0}
+            className="mt-5 w-full bg-[#111111] px-4 py-3.5 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#8B1E24] disabled:cursor-not-allowed disabled:bg-[#111111]/25 disabled:hover:bg-[#111111]/25"
+          >
+            Finalizar pedido
+          </button>
+        </div>
+      </aside>
+    </div>
+  )
+}
+
 export default function Home() {
-  const [cartCount, setCartCount] = useState(0)
+  const [cartOpen, setCartOpen] = useState(false)
+  const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [products, setProducts] = useState<Producto[]>([])
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
   const [filter, setFilter] = useState<Filter>("Todos")
@@ -175,13 +391,74 @@ export default function Home() {
     [products, filter],
   )
 
+  const cartCount = useMemo(
+    () => cartItems.reduce((sum, item) => sum + item.quantity, 0),
+    [cartItems],
+  )
+
+  function addToCart(product: Producto) {
+    const id = productId(product)
+    const price = Number(product.Precio)
+
+    setCartItems((items) => {
+      const existing = items.find((item) => item.id === id)
+      if (existing) {
+        return items.map((item) =>
+          item.id === id ? { ...item, quantity: item.quantity + 1 } : item,
+        )
+      }
+      return [
+        ...items,
+        {
+          id,
+          name: product.Nombre,
+          price: Number.isFinite(price) ? price : 0,
+          image: product.imagen_url,
+          quantity: 1,
+        },
+      ]
+    })
+    setCartOpen(true)
+  }
+
+  function increaseItem(id: string) {
+    setCartItems((items) =>
+      items.map((item) =>
+        item.id === id ? { ...item, quantity: item.quantity + 1 } : item,
+      ),
+    )
+  }
+
+  function decreaseItem(id: string) {
+    setCartItems((items) =>
+      items
+        .map((item) =>
+          item.id === id ? { ...item, quantity: item.quantity - 1 } : item,
+        )
+        .filter((item) => item.quantity > 0),
+    )
+  }
+
+  function removeItem(id: string) {
+    setCartItems((items) => items.filter((item) => item.id !== id))
+  }
+
   return (
     <div className="min-h-screen bg-[#FAF8F6] text-[#111111]">
       <div className="bg-[#111111] px-4 py-2.5 text-center text-[10px] font-medium uppercase tracking-[0.25em] text-white sm:text-[11px]">
         Envío cortesía en compras desde $999 MXN · Alta cosmética cruelty-free
       </div>
 
-      <Navbar cartCount={cartCount} />
+      <Navbar cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
+
+      <CartDrawer
+        open={cartOpen}
+        items={cartItems}
+        onClose={() => setCartOpen(false)}
+        onIncrease={increaseItem}
+        onDecrease={decreaseItem}
+        onRemove={removeItem}
+      />
 
       <main>
         <section className="border-b border-[#111111]/10">
@@ -341,7 +618,7 @@ export default function Home() {
 
                     <button
                       type="button"
-                      onClick={() => setCartCount((count) => count + 1)}
+                      onClick={() => addToCart(product)}
                       className="mt-5 bg-[#111111] px-4 py-3 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#8B1E24] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
                     >
                       Añadir a la bolsa
