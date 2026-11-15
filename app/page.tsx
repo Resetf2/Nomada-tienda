@@ -1,6 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type HTMLAttributes,
+} from "react"
 import { supabase } from "@/lib/supabase"
 
 const links = [
@@ -200,7 +206,7 @@ function CartDrawer({
     <div
       className={`fixed inset-0 z-50 ${open ? "pointer-events-auto" : "pointer-events-none"}`}
       aria-hidden={!open}
-      inert={!open ? true : undefined}
+      {...(!open ? ({ inert: true } as HTMLAttributes<HTMLDivElement>) : {})}
     >
       <button
         type="button"
@@ -357,12 +363,24 @@ function CartDrawer({
   )
 }
 
+function mapProducto(row: Record<string, unknown>): Producto {
+  return {
+    Nombre: String(row.Nombre ?? ""),
+    Beneficio: row.Beneficio == null ? null : String(row.Beneficio),
+    Precio: row.Precio as number | string,
+    imagen_url: row.imagen_url == null ? null : String(row.imagen_url),
+  }
+}
+
 export default function Home() {
   const [cartOpen, setCartOpen] = useState(false)
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [products, setProducts] = useState<Producto[]>([])
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
   const [filter, setFilter] = useState<Filter>("Todos")
+
+  const openCart = useCallback(() => setCartOpen(true), [])
+  const closeCart = useCallback(() => setCartOpen(false), [])
 
   useEffect(() => {
     let cancelled = false
@@ -377,7 +395,8 @@ export default function Home() {
           setStatus("error")
           return
         }
-        setProducts(data ?? [])
+        const rows = (data ?? []) as Record<string, unknown>[]
+        setProducts(rows.map(mapProducto))
         setStatus("ready")
       })
 
@@ -396,7 +415,7 @@ export default function Home() {
     [cartItems],
   )
 
-  function addToCart(product: Producto) {
+  const addToCart = useCallback((product: Producto) => {
     const id = productId(product)
     const price = Number(product.Precio)
 
@@ -419,17 +438,17 @@ export default function Home() {
       ]
     })
     setCartOpen(true)
-  }
+  }, [])
 
-  function increaseItem(id: string) {
+  const increaseItem = useCallback((id: string) => {
     setCartItems((items) =>
       items.map((item) =>
         item.id === id ? { ...item, quantity: item.quantity + 1 } : item,
       ),
     )
-  }
+  }, [])
 
-  function decreaseItem(id: string) {
+  const decreaseItem = useCallback((id: string) => {
     setCartItems((items) =>
       items
         .map((item) =>
@@ -437,11 +456,11 @@ export default function Home() {
         )
         .filter((item) => item.quantity > 0),
     )
-  }
+  }, [])
 
-  function removeItem(id: string) {
+  const removeItem = useCallback((id: string) => {
     setCartItems((items) => items.filter((item) => item.id !== id))
-  }
+  }, [])
 
   return (
     <div className="min-h-screen bg-[#FAF8F6] text-[#111111]">
@@ -449,12 +468,12 @@ export default function Home() {
         Envío cortesía en compras desde $999 MXN · Alta cosmética cruelty-free
       </div>
 
-      <Navbar cartCount={cartCount} onOpenCart={() => setCartOpen(true)} />
+      <Navbar cartCount={cartCount} onOpenCart={openCart} />
 
       <CartDrawer
         open={cartOpen}
         items={cartItems}
-        onClose={() => setCartOpen(false)}
+        onClose={closeCart}
         onIncrease={increaseItem}
         onDecrease={decreaseItem}
         onRemove={removeItem}
