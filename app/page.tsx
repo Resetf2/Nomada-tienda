@@ -7,8 +7,8 @@ import {
   useRef,
   useState,
   type FormEvent,
-  type HTMLAttributes,
 } from "react"
+import { createPortal } from "react-dom"
 import { supabase } from "@/lib/supabase"
 
 const links = [
@@ -76,23 +76,23 @@ function Navbar({
   const active = "Inicio"
 
   return (
-    <header className="sticky top-0 z-[70] border-b border-[#111111]/10 bg-[#FAF8F6]/92 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-[#111111]/10 bg-[#FAF8F6]/92 backdrop-blur-md">
       <nav
         aria-label="Navegación principal"
-        className="mx-auto flex h-[4.25rem] max-w-[1200px] items-center justify-between gap-4 px-6"
+        className="relative mx-auto flex h-[4.25rem] max-w-[1200px] items-center justify-between px-6"
       >
         <a
           href="#"
-          className="flex-none [font-family:var(--font-playfair),Georgia,serif] text-[1.35rem] font-medium tracking-[0.22em] text-[#111111] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111] sm:flex-1"
+          className="relative z-10 shrink-0 [font-family:var(--font-playfair),Georgia,serif] text-[1.35rem] font-medium tracking-[0.22em] text-[#111111] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
         >
           Nómada<span className="text-[#B89768]">.</span>
         </a>
 
-        <ul className="hidden gap-10 md:flex">
+        <ul className="pointer-events-none absolute inset-x-0 hidden items-center justify-center gap-10 md:flex">
           {links.map((link) => {
             const isActive = link.label === active
             return (
-              <li key={link.label}>
+              <li key={link.label} className="pointer-events-auto">
                 <a
                   href={link.href}
                   aria-current={isActive ? "page" : undefined}
@@ -113,12 +113,12 @@ function Navbar({
           })}
         </ul>
 
-        <div className="relative z-[71] flex flex-1 items-center justify-end gap-1">
+        <div className="relative z-20 flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={onOpenCart}
             aria-label={`Bolsa de compras, ${cartCount} ${cartCount === 1 ? "producto" : "productos"}`}
-            className="relative z-[71] grid size-10 cursor-pointer place-items-center pointer-events-auto text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
+            className="relative grid size-10 cursor-pointer place-items-center text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none">
               <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
@@ -202,9 +202,14 @@ function CartDrawer({
   const [form, setForm] = useState<CheckoutForm>(emptyCheckoutForm)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0)
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     if (!open) {
@@ -271,35 +276,22 @@ function CartDrawer({
     }
   }
 
-  return (
-    <div
-      className={`fixed inset-0 z-[60] ${
-        open
-          ? "pointer-events-auto visible"
-          : "pointer-events-none invisible"
-      }`}
-      aria-hidden={!open}
-      {...(!open ? ({ inert: true } as HTMLAttributes<HTMLDivElement>) : {})}
-    >
+  if (!mounted || !open) return null
+
+  return createPortal(
+    <div className="fixed inset-0 z-50">
       <button
         type="button"
-        tabIndex={open ? 0 : -1}
         aria-label="Cerrar bolsa"
         onClick={onClose}
-        className={`absolute inset-0 bg-[#111111]/40 transition-opacity duration-300 ${
-          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-        }`}
+        className="absolute inset-0 bg-[#111111]/50"
       />
 
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="cart-title"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-[420px] flex-col bg-[#FAF8F6] shadow-[-24px_0_60px_rgba(17,17,17,0.12)] transition-transform duration-300 ease-out ${
-          open
-            ? "pointer-events-auto translate-x-0"
-            : "pointer-events-none translate-x-full"
-        }`}
+        className="absolute inset-y-0 right-0 z-10 flex h-full w-full max-w-md flex-col border-l border-[#111111]/15 bg-white shadow-[-20px_0_50px_rgba(17,17,17,0.25)]"
       >
         <div className="flex items-center justify-between border-b border-[#111111]/10 px-6 py-5">
           <div>
@@ -536,7 +528,8 @@ function CartDrawer({
           )}
         </div>
       </aside>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -558,7 +551,6 @@ export default function Home() {
   const [addedProductId, setAddedProductId] = useState<string | null>(null)
   const addedTimerRef = useRef<number | null>(null)
 
-  const openCart = useCallback(() => setIsCartOpen(true), [])
   const closeCart = useCallback(() => setIsCartOpen(false), [])
 
   useEffect(() => {
@@ -658,15 +650,9 @@ export default function Home() {
         Envío cortesía en compras desde $999 MXN · Alta cosmética cruelty-free
       </div>
 
-      <Navbar cartCount={cartCount} onOpenCart={openCart} />
-
-      <CartDrawer
-        open={isCartOpen}
-        items={cartItems}
-        onClose={closeCart}
-        onIncrease={increaseItem}
-        onDecrease={decreaseItem}
-        onRemove={removeItem}
+      <Navbar
+        cartCount={cartCount}
+        onOpenCart={() => setIsCartOpen(true)}
       />
 
       <main>
@@ -936,6 +922,15 @@ export default function Home() {
           © 2026 Nómada. · Alta cosmética cruelty-free
         </div>
       </footer>
+
+      <CartDrawer
+        open={isCartOpen}
+        items={cartItems}
+        onClose={closeCart}
+        onIncrease={increaseItem}
+        onDecrease={decreaseItem}
+        onRemove={removeItem}
+      />
     </div>
   )
 }
