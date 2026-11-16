@@ -42,53 +42,9 @@ function getStripe() {
   return new Stripe(secretKey)
 }
 
-async function notifyAdminWhatsApp(order: {
-  customerName: string
-  items: { name: string; quantity: number; price: number }[]
-  total: number
-  address: string
-}) {
-  const token = process.env.WHATSAPP_TOKEN
-  const phoneId = process.env.WHATSAPP_PHONE_ID
-  const adminPhone = process.env.MI_WHATSAPP_ADMIN
-
-  if (!token || !phoneId || !adminPhone || token.startsWith("PEGA_AQUI")) {
-    console.warn(
-      "WhatsApp no configurado: revisa WHATSAPP_TOKEN, WHATSAPP_PHONE_ID y MI_WHATSAPP_ADMIN en .env.local.",
-    )
-    return
-  }
-
-  const response = await fetch(
-    `https://graph.facebook.com/v22.0/${phoneId}/messages`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to: adminPhone,
-        type: "template",
-        template: {
-          name: "hello_world",
-          language: { code: "en_US" },
-        },
-      }),
-    },
-  )
-
-  if (!response.ok) {
-    const details = await response.text()
-    console.error("Error al enviar WhatsApp de nuevo pedido:", details)
-    console.info("Resumen del pedido (WhatsApp falló):", {
-      cliente: order.customerName,
-      productos: order.items,
-      total: order.total,
-      direccion: order.address,
-    })
-  }
+function truncateMetadata(value: string, max = 500) {
+  if (value.length <= max) return value
+  return `${value.slice(0, max - 1)}…`
 }
 
 export async function POST(request: Request) {
@@ -135,38 +91,33 @@ export async function POST(request: Request) {
       0,
     )
 
-    const supabase = getSupabase()
-    const { error: orderError } = await supabase.from("pedidos").insert({
-      cliente_nombre: customer.name.trim(),
-      cliente_email: customer.email.trim(),
-      cliente_telefono: customer.phone.trim(),
-      direccion_envio: customer.address.trim(),
-      productos: normalizedItems,
-      total,
-      estado: "pendiente",
-    })
+    const clienteNombre = customer.name.trim()
+    const clienteTelefono = customer.phone.trim()
+    const productosResumen = normalizedItems
+      .map((item) => `${item.quantity}x ${item.name}`)
+      .join(", ")
 
-    if (orderError) {
+    const supabase = getSupabase()
+    const { data: pedido, error: orderError } = await supabase
+      .from("pedidos")
+      .insert({
+        cliente_nombre: clienteNombre,
+        cliente_email: customer.email.trim(),
+        cliente_telefono: clienteTelefono,
+        direccion_envio: customer.address.trim(),
+        productos: normalizedItems,
+        total,
+        estado: "pendiente",
+      })
+      .select("id")
+      .single()
+
+    if (orderError || !pedido?.id) {
       console.error("Error al guardar pedido en Supabase:", orderError)
       return Response.json(
         { error: "No se pudo registrar el pedido. Intenta de nuevo." },
         { status: 500 },
       )
-    }
-
-    try {
-      await notifyAdminWhatsApp({
-        customerName: customer.name.trim(),
-        items: normalizedItems.map((item) => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-        total,
-        address: customer.address.trim(),
-      })
-    } catch (whatsappError) {
-      console.error("WhatsApp no bloqueó el checkout:", whatsappError)
     }
 
     const stripe = getStripe()
@@ -189,8 +140,11 @@ export async function POST(request: Request) {
       success_url: `${origin}/?pago=exitoso`,
       cancel_url: `${origin}/?pago=cancelado`,
       metadata: {
-        customer_name: customer.name.trim(),
-        customer_phone: customer.phone.trim(),
+        pedido_id: String(pedido.id),
+        cliente_nombre: truncateMetadata(clienteNombre),
+        cliente_telefono: truncateMetadata(clienteTelefono),
+        productos: truncateMetadata(productosResumen),
+        total: String(total),
       },
     })
 
