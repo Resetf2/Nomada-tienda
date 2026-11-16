@@ -76,7 +76,7 @@ function Navbar({
   const active = "Inicio"
 
   return (
-    <header className="sticky top-0 z-20 border-b border-[#111111]/10 bg-[#FAF8F6]/92 backdrop-blur-md">
+    <header className="sticky top-0 z-[70] border-b border-[#111111]/10 bg-[#FAF8F6]/92 backdrop-blur-md">
       <nav
         aria-label="Navegación principal"
         className="mx-auto flex h-[4.25rem] max-w-[1200px] items-center justify-between gap-4 px-6"
@@ -113,14 +113,14 @@ function Navbar({
           })}
         </ul>
 
-        <div className="flex flex-1 items-center justify-end gap-1">
+        <div className="relative z-[71] flex flex-1 items-center justify-end gap-1">
           <button
             type="button"
             onClick={onOpenCart}
             aria-label={`Bolsa de compras, ${cartCount} ${cartCount === 1 ? "producto" : "productos"}`}
-            className="relative grid size-10 place-items-center text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
+            className="relative z-[71] grid size-10 cursor-pointer place-items-center pointer-events-auto text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none">
               <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
               <path d="M3 6h18" />
               <path d="M16 10a4 4 0 0 1-8 0" />
@@ -128,7 +128,7 @@ function Navbar({
             {cartCount > 0 && (
               <span
                 aria-hidden="true"
-                className="absolute right-[2px] top-1 grid h-[17px] min-w-[17px] place-items-center bg-[#8B1E24] px-1 text-[10px] font-medium text-white"
+                className="pointer-events-none absolute right-[2px] top-1 grid h-[17px] min-w-[17px] place-items-center bg-[#8B1E24] px-1 text-[10px] font-medium text-white"
               >
                 {cartCount}
               </span>
@@ -273,7 +273,11 @@ function CartDrawer({
 
   return (
     <div
-      className={`fixed inset-0 z-50 ${open ? "pointer-events-auto" : "pointer-events-none"}`}
+      className={`fixed inset-0 z-[60] ${
+        open
+          ? "pointer-events-auto visible"
+          : "pointer-events-none invisible"
+      }`}
       aria-hidden={!open}
       {...(!open ? ({ inert: true } as HTMLAttributes<HTMLDivElement>) : {})}
     >
@@ -283,7 +287,7 @@ function CartDrawer({
         aria-label="Cerrar bolsa"
         onClick={onClose}
         className={`absolute inset-0 bg-[#111111]/40 transition-opacity duration-300 ${
-          open ? "opacity-100" : "opacity-0"
+          open ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
 
@@ -292,7 +296,9 @@ function CartDrawer({
         aria-modal="true"
         aria-labelledby="cart-title"
         className={`absolute inset-y-0 right-0 flex w-full max-w-[420px] flex-col bg-[#FAF8F6] shadow-[-24px_0_60px_rgba(17,17,17,0.12)] transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "translate-x-full"
+          open
+            ? "pointer-events-auto translate-x-0"
+            : "pointer-events-none translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between border-b border-[#111111]/10 px-6 py-5">
@@ -544,7 +550,7 @@ function mapProducto(row: Record<string, unknown>): Producto {
 }
 
 export default function Home() {
-  const [cartOpen, setCartOpen] = useState(false)
+  const [isCartOpen, setIsCartOpen] = useState(false)
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [products, setProducts] = useState<Producto[]>([])
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading")
@@ -552,8 +558,8 @@ export default function Home() {
   const [addedProductId, setAddedProductId] = useState<string | null>(null)
   const addedTimerRef = useRef<number | null>(null)
 
-  const openCart = useCallback(() => setCartOpen(true), [])
-  const closeCart = useCallback(() => setCartOpen(false), [])
+  const openCart = useCallback(() => setIsCartOpen(true), [])
+  const closeCart = useCallback(() => setIsCartOpen(false), [])
 
   useEffect(() => {
     let cancelled = false
@@ -655,7 +661,7 @@ export default function Home() {
       <Navbar cartCount={cartCount} onOpenCart={openCart} />
 
       <CartDrawer
-        open={cartOpen}
+        open={isCartOpen}
         items={cartItems}
         onClose={closeCart}
         onIncrease={increaseItem}
