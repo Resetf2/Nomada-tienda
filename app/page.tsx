@@ -8,7 +8,6 @@ import {
   useState,
   type FormEvent,
 } from "react"
-import { createPortal } from "react-dom"
 import { supabase } from "@/lib/supabase"
 
 const links = [
@@ -67,10 +66,10 @@ function matchesFilter(product: Producto, filter: Filter) {
 
 function Navbar({
   cartCount,
-  onOpenCart,
+  setIsCartOpen,
 }: {
   cartCount: number
-  onOpenCart: () => void
+  setIsCartOpen: (open: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const active = "Inicio"
@@ -79,20 +78,20 @@ function Navbar({
     <header className="sticky top-0 z-40 border-b border-[#111111]/10 bg-[#FAF8F6]/92 backdrop-blur-md">
       <nav
         aria-label="Navegación principal"
-        className="relative mx-auto flex h-[4.25rem] max-w-[1200px] items-center justify-between px-6"
+        className="mx-auto grid h-[4.25rem] max-w-[1200px] grid-cols-[auto_1fr_auto] items-center gap-4 px-6"
       >
         <a
           href="#"
-          className="relative z-10 shrink-0 [font-family:var(--font-playfair),Georgia,serif] text-[1.35rem] font-medium tracking-[0.22em] text-[#111111] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
+          className="shrink-0 [font-family:var(--font-playfair),Georgia,serif] text-[1.35rem] font-medium tracking-[0.22em] text-[#111111] uppercase focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
         >
           Nómada<span className="text-[#B89768]">.</span>
         </a>
 
-        <ul className="pointer-events-none absolute inset-x-0 hidden items-center justify-center gap-10 md:flex">
+        <ul className="hidden items-center justify-center gap-10 md:flex">
           {links.map((link) => {
             const isActive = link.label === active
             return (
-              <li key={link.label} className="pointer-events-auto">
+              <li key={link.label}>
                 <a
                   href={link.href}
                   aria-current={isActive ? "page" : undefined}
@@ -113,12 +112,12 @@ function Navbar({
           })}
         </ul>
 
-        <div className="relative z-20 flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1 justify-self-end">
           <button
             type="button"
-            onClick={onOpenCart}
+            onClick={() => setIsCartOpen(true)}
             aria-label={`Bolsa de compras, ${cartCount} ${cartCount === 1 ? "producto" : "productos"}`}
-            className="relative grid size-10 cursor-pointer place-items-center text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
+            className="relative z-10 grid size-10 cursor-pointer place-items-center text-[#111111] transition-colors hover:text-[#B89768] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#111111]"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="pointer-events-none">
               <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
@@ -202,14 +201,9 @@ function CartDrawer({
   const [form, setForm] = useState<CheckoutForm>(emptyCheckoutForm)
   const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
-  const [mounted, setMounted] = useState(false)
 
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0)
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   useEffect(() => {
     if (!open) {
@@ -276,10 +270,10 @@ function CartDrawer({
     }
   }
 
-  if (!mounted || !open) return null
+  if (!open) return null
 
-  return createPortal(
-    <div className="fixed inset-0 z-50">
+  return (
+    <div className="fixed inset-0 z-[9999] flex justify-end">
       <button
         type="button"
         aria-label="Cerrar bolsa"
@@ -291,7 +285,7 @@ function CartDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="cart-title"
-        className="absolute inset-y-0 right-0 z-10 flex h-full w-full max-w-md flex-col border-l border-[#111111]/15 bg-white shadow-[-20px_0_50px_rgba(17,17,17,0.25)]"
+        className="relative z-10 flex h-full w-full max-w-md flex-col border-l border-[#111111]/15 bg-white shadow-[-20px_0_50px_rgba(17,17,17,0.25)]"
       >
         <div className="flex items-center justify-between border-b border-[#111111]/10 px-6 py-5">
           <div>
@@ -528,8 +522,7 @@ function CartDrawer({
           )}
         </div>
       </aside>
-    </div>,
-    document.body,
+    </div>
   )
 }
 
@@ -650,10 +643,7 @@ export default function Home() {
         Envío cortesía en compras desde $999 MXN · Alta cosmética cruelty-free
       </div>
 
-      <Navbar
-        cartCount={cartCount}
-        onOpenCart={() => setIsCartOpen(true)}
-      />
+      <Navbar cartCount={cartCount} setIsCartOpen={setIsCartOpen} />
 
       <main>
         <section className="border-b border-[#111111]/10">
