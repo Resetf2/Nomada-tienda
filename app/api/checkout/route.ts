@@ -42,6 +42,55 @@ function getStripe() {
   return new Stripe(secretKey)
 }
 
+async function notifyAdminWhatsApp(order: {
+  customerName: string
+  items: { name: string; quantity: number; price: number }[]
+  total: number
+  address: string
+}) {
+  const token = process.env.WHATSAPP_TOKEN
+  const phoneId = process.env.WHATSAPP_PHONE_ID
+  const adminPhone = process.env.MI_WHATSAPP_ADMIN
+
+  if (!token || !phoneId || !adminPhone || token.startsWith("PEGA_AQUI")) {
+    console.warn(
+      "WhatsApp no configurado: revisa WHATSAPP_TOKEN, WHATSAPP_PHONE_ID y MI_WHATSAPP_ADMIN en .env.local.",
+    )
+    return
+  }
+
+  const response = await fetch(
+    `https://graph.facebook.com/v22.0/${phoneId}/messages`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: adminPhone,
+        type: "template",
+        template: {
+          name: "hello_world",
+          language: { code: "en_US" },
+        },
+      }),
+    },
+  )
+
+  if (!response.ok) {
+    const details = await response.text()
+    console.error("Error al enviar WhatsApp de nuevo pedido:", details)
+    console.info("Resumen del pedido (WhatsApp falló):", {
+      cliente: order.customerName,
+      productos: order.items,
+      total: order.total,
+      direccion: order.address,
+    })
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as CheckoutBody
@@ -103,6 +152,21 @@ export async function POST(request: Request) {
         { error: "No se pudo registrar el pedido. Intenta de nuevo." },
         { status: 500 },
       )
+    }
+
+    try {
+      await notifyAdminWhatsApp({
+        customerName: customer.name.trim(),
+        items: normalizedItems.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        total,
+        address: customer.address.trim(),
+      })
+    } catch (whatsappError) {
+      console.error("WhatsApp no bloqueó el checkout:", whatsappError)
     }
 
     const stripe = getStripe()
