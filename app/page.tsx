@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type FormEvent,
   type HTMLAttributes,
 } from "react"
 import { supabase } from "@/lib/supabase"
@@ -168,6 +169,20 @@ function Navbar({
   )
 }
 
+type CheckoutForm = {
+  name: string
+  email: string
+  phone: string
+  address: string
+}
+
+const emptyCheckoutForm: CheckoutForm = {
+  name: "",
+  email: "",
+  phone: "",
+  address: "",
+}
+
 function CartDrawer({
   open,
   items,
@@ -183,11 +198,21 @@ function CartDrawer({
   onDecrease: (id: string) => void
   onRemove: (id: string) => void
 }) {
+  const [step, setStep] = useState<"cart" | "checkout">("cart")
+  const [form, setForm] = useState<CheckoutForm>(emptyCheckoutForm)
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+
   const itemCount = items.reduce((sum, item) => sum + item.quantity, 0)
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setStep("cart")
+      setCheckoutError(null)
+      setCheckoutLoading(false)
+      return
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose()
@@ -202,6 +227,49 @@ function CartDrawer({
       window.removeEventListener("keydown", onKeyDown)
     }
   }, [open, onClose])
+
+  async function handleCheckoutSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setCheckoutError(null)
+    setCheckoutLoading(true)
+
+    try {
+      const response = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer: {
+            name: form.name.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim(),
+            address: form.address.trim(),
+          },
+          items: items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            image: item.image,
+          })),
+        }),
+      })
+
+      const data = (await response.json()) as { url?: string; error?: string }
+
+      if (!response.ok || !data.url) {
+        throw new Error(data.error || "No se pudo iniciar el pago.")
+      }
+
+      window.location.href = data.url
+    } catch (error) {
+      setCheckoutError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo iniciar el pago. Intenta de nuevo.",
+      )
+      setCheckoutLoading(false)
+    }
+  }
 
   return (
     <div
@@ -229,12 +297,14 @@ function CartDrawer({
       >
         <div className="flex items-center justify-between border-b border-[#111111]/10 px-6 py-5">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">Bolsa</p>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">
+              {step === "cart" ? "Bolsa" : "Envío"}
+            </p>
             <h2
               id="cart-title"
               className="mt-1 [font-family:var(--font-playfair),Georgia,serif] text-2xl text-[#111111]"
             >
-              Tu selección
+              {step === "cart" ? "Tu selección" : "Datos de envío"}
             </h2>
           </div>
           <button
@@ -250,7 +320,78 @@ function CartDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-6">
-          {items.length === 0 ? (
+          {step === "checkout" ? (
+            <form id="checkout-form" onSubmit={handleCheckoutSubmit} className="space-y-5">
+              <p className="text-sm leading-relaxed text-[#111111]/60">
+                Completa tus datos para continuar al pago seguro.
+              </p>
+
+              <label className="block">
+                <span className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">
+                  Nombre completo
+                </span>
+                <input
+                  required
+                  name="name"
+                  value={form.name}
+                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                  className="mt-2 w-full border border-[#111111]/15 bg-transparent px-3 py-3 text-sm text-[#111111] outline-none transition-colors focus:border-[#111111]"
+                  autoComplete="name"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">
+                  Correo electrónico
+                </span>
+                <input
+                  required
+                  type="email"
+                  name="email"
+                  value={form.email}
+                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                  className="mt-2 w-full border border-[#111111]/15 bg-transparent px-3 py-3 text-sm text-[#111111] outline-none transition-colors focus:border-[#111111]"
+                  autoComplete="email"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">
+                  Teléfono
+                </span>
+                <input
+                  required
+                  type="tel"
+                  name="phone"
+                  value={form.phone}
+                  onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+                  className="mt-2 w-full border border-[#111111]/15 bg-transparent px-3 py-3 text-sm text-[#111111] outline-none transition-colors focus:border-[#111111]"
+                  autoComplete="tel"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-[10px] uppercase tracking-[0.25em] text-[#B89768]">
+                  Dirección completa de envío
+                </span>
+                <textarea
+                  required
+                  name="address"
+                  rows={4}
+                  value={form.address}
+                  onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))}
+                  className="mt-2 w-full resize-none border border-[#111111]/15 bg-transparent px-3 py-3 text-sm text-[#111111] outline-none transition-colors focus:border-[#111111]"
+                  autoComplete="street-address"
+                />
+              </label>
+
+              {checkoutError && (
+                <p className="border border-[#8B1E24]/30 bg-[#8B1E24]/5 px-3 py-3 text-sm leading-relaxed text-[#8B1E24]" role="alert">
+                  {checkoutError}
+                </p>
+              )}
+            </form>
+          ) : items.length === 0 ? (
             <div className="flex h-full min-h-[240px] flex-col items-center justify-center text-center">
               <p className="[font-family:var(--font-playfair),Georgia,serif] text-xl text-[#111111]">
                 Tu bolsa está vacía
@@ -351,13 +492,42 @@ function CartDrawer({
           <p className="mt-3 text-[12px] leading-relaxed text-[#111111]/50">
             Envío cortesía en compras desde $999 MXN.
           </p>
-          <button
-            type="button"
-            disabled={items.length === 0}
-            className="mt-5 w-full bg-[#111111] px-4 py-3.5 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#8B1E24] disabled:cursor-not-allowed disabled:bg-[#111111]/25 disabled:hover:bg-[#111111]/25"
-          >
-            Finalizar pedido
-          </button>
+
+          {step === "checkout" ? (
+            <div className="mt-5 space-y-3">
+              <button
+                type="submit"
+                form="checkout-form"
+                disabled={checkoutLoading || items.length === 0}
+                className="w-full bg-[#111111] px-4 py-3.5 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#8B1E24] disabled:cursor-not-allowed disabled:bg-[#111111]/25 disabled:hover:bg-[#111111]/25"
+              >
+                {checkoutLoading ? "Redirigiendo…" : "Proceder al pago"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setStep("cart")
+                  setCheckoutError(null)
+                }}
+                disabled={checkoutLoading}
+                className="w-full border border-[#111111]/20 px-4 py-3 text-[11px] font-medium uppercase tracking-[0.25em] text-[#111111] transition-colors hover:border-[#B89768] hover:text-[#B89768]"
+              >
+                Volver a la bolsa
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={items.length === 0}
+              onClick={() => {
+                setCheckoutError(null)
+                setStep("checkout")
+              }}
+              className="mt-5 w-full bg-[#111111] px-4 py-3.5 text-[11px] font-medium uppercase tracking-[0.25em] text-white transition-colors hover:bg-[#8B1E24] disabled:cursor-not-allowed disabled:bg-[#111111]/25 disabled:hover:bg-[#111111]/25"
+            >
+              Finalizar pedido
+            </button>
+          )}
         </div>
       </aside>
     </div>
