@@ -22,9 +22,14 @@ function getStripe() {
   return new Stripe(secretKey)
 }
 
+/** Meta exige celulares MX como 521 + 10 dígitos. */
 function cleanWhatsAppNumber(raw: string) {
   const digits = raw.replace(/\D/g, "")
-  if (digits.length === 10) return `52${digits}`
+  if (digits.length === 10) return `521${digits}`
+  if (digits.length === 12 && digits.startsWith("52")) {
+    return `521${digits.slice(-10)}`
+  }
+  if (digits.length === 13 && digits.startsWith("521")) return digits
   return digits
 }
 
@@ -62,7 +67,7 @@ async function sendCustomerWhatsApp(params: {
     `Pronto prepararemos tu envío.`
 
   const response = await fetch(
-    `https://graph.facebook.com/v22.0/${phoneId}/messages`,
+    `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
     {
       method: "POST",
       headers: {
@@ -78,8 +83,15 @@ async function sendCustomerWhatsApp(params: {
     },
   )
 
+  const details = await response.text()
+  console.log("Respuesta WhatsApp Meta:", {
+    status: response.status,
+    ok: response.ok,
+    to: params.to,
+    body: details,
+  })
+
   if (!response.ok) {
-    const details = await response.text()
     console.error("Error al enviar WhatsApp al cliente:", details)
   }
 }
