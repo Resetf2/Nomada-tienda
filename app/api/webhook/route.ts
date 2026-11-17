@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js"
+﻿import { createClient } from "@supabase/supabase-js"
 import Stripe from "stripe"
 
 function getSupabase() {
@@ -22,7 +22,7 @@ function getStripe() {
   return new Stripe(secretKey)
 }
 
-/** Meta exige celulares MX como 521 + 10 dígitos. */
+/** Meta exige celulares MX como 521 + 10 dÃ­gitos. */
 function cleanWhatsAppNumber(raw: string) {
   const digits = raw.replace(/\D/g, "")
   if (digits.length === 10) return `521${digits}`
@@ -91,12 +91,12 @@ export async function POST(request: Request) {
     } else {
       event = JSON.parse(payload) as Stripe.Event
       console.warn(
-        "Webhook sin STRIPE_WEBHOOK_SECRET: el evento se parseó sin verificación.",
+        "Webhook sin STRIPE_WEBHOOK_SECRET: el evento se parseÃ³ sin verificaciÃ³n.",
       )
     }
   } catch (error) {
-    console.error("Firma de webhook inválida:", error)
-    return Response.json({ error: "Webhook inválido." }, { status: 400 })
+    console.error("Firma de webhook invÃ¡lida:", error)
+    return Response.json({ error: "Webhook invÃ¡lido." }, { status: 400 })
   }
 
   if (event.type !== "checkout.session.completed") {
@@ -130,12 +130,12 @@ export async function POST(request: Request) {
   try {
     const phone = cleanWhatsAppNumber(clienteTelefono)
     if (!phone) {
-      console.warn("Pedido pagado sin teléfono válido para WhatsApp:", pedidoId)
+      console.warn("Pedido pagado sin telÃ©fono vÃ¡lido para WhatsApp:", pedidoId)
     } else {
       await sendCustomerWhatsApp(phone)
     }
   } catch (whatsappError) {
-    console.error("WhatsApp no bloqueó el webhook:", whatsappError)
+    console.error("WhatsApp no bloqueÃ³ el webhook:", whatsappError)
   }
 
   return Response.json({ received: true })
