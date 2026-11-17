@@ -33,22 +33,7 @@ function cleanWhatsAppNumber(raw: string) {
   return digits
 }
 
-function formatMxn(total: number | string) {
-  const amount = Number(total)
-  return new Intl.NumberFormat("es-MX", {
-    style: "currency",
-    currency: "MXN",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(amount) ? amount : 0)
-}
-
-async function sendCustomerWhatsApp(params: {
-  to: string
-  customerName: string
-  productos: string
-  total: string
-  pedidoId: string
-}) {
+async function sendCustomerWhatsApp(to: string) {
   const token = process.env.WHATSAPP_TOKEN
   const phoneId = process.env.WHATSAPP_PHONE_ID
 
@@ -58,13 +43,6 @@ async function sendCustomerWhatsApp(params: {
     )
     return
   }
-
-  const body =
-    `¡Gracias por tu compra, ${params.customerName}!\n\n` +
-    `Pedido #${params.pedidoId} confirmado.\n` +
-    `Productos: ${params.productos}\n` +
-    `Total: ${formatMxn(params.total)}\n\n` +
-    `Pronto prepararemos tu envío.`
 
   const response = await fetch(
     `https://graph.facebook.com/v22.0/${process.env.WHATSAPP_PHONE_ID}/messages`,
@@ -76,9 +54,12 @@ async function sendCustomerWhatsApp(params: {
       },
       body: JSON.stringify({
         messaging_product: "whatsapp",
-        to: params.to,
-        type: "text",
-        text: { body },
+        to,
+        type: "template",
+        template: {
+          name: "hello_world",
+          language: { code: "en_US" },
+        },
       }),
     },
   )
@@ -87,7 +68,7 @@ async function sendCustomerWhatsApp(params: {
   console.log("Respuesta WhatsApp Meta:", {
     status: response.status,
     ok: response.ok,
-    to: params.to,
+    to,
     body: details,
   })
 
@@ -125,10 +106,7 @@ export async function POST(request: Request) {
   const session = event.data.object as Stripe.Checkout.Session
   const metadata = session.metadata ?? {}
   const pedidoId = metadata.pedido_id
-  const clienteNombre = metadata.cliente_nombre || "Cliente"
   const clienteTelefono = metadata.cliente_telefono || ""
-  const productos = metadata.productos || "Tu selección Nómada"
-  const total = metadata.total || "0"
 
   if (!pedidoId) {
     console.error("checkout.session.completed sin pedido_id en metadata")
@@ -154,13 +132,7 @@ export async function POST(request: Request) {
     if (!phone) {
       console.warn("Pedido pagado sin teléfono válido para WhatsApp:", pedidoId)
     } else {
-      await sendCustomerWhatsApp({
-        to: phone,
-        customerName: clienteNombre,
-        productos,
-        total,
-        pedidoId,
-      })
+      await sendCustomerWhatsApp(phone)
     }
   } catch (whatsappError) {
     console.error("WhatsApp no bloqueó el webhook:", whatsappError)
