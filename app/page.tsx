@@ -20,10 +20,12 @@ const links = [
 const filters = ["Todos", "Labiales", "Rostro", "Ojos", "Skincare"] as const
 
 type Producto = {
+  id: string
   Nombre: string
   Beneficio: string | null
   Precio: number | string
   imagen_url: string | null
+  Stock: number | null
 }
 
 type CartItem = {
@@ -49,7 +51,12 @@ const toneSwatches = [
 ]
 
 function productId(product: Producto) {
+  if (product.id) return product.id
   return `${product.Nombre}::${product.Precio}::${product.imagen_url ?? ""}`
+}
+
+function digitsOnly(value: string) {
+  return value.replace(/\D/g, "")
 }
 
 function matchesFilter(product: Producto, filter: Filter) {
@@ -230,6 +237,13 @@ function CartDrawer({
   async function handleCheckoutSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setCheckoutError(null)
+
+    const phoneDigits = digitsOnly(form.phone)
+    if (phoneDigits.length !== 10) {
+      setCheckoutError("El teléfono debe tener exactamente 10 dígitos.")
+      return
+    }
+
     setCheckoutLoading(true)
 
     try {
@@ -240,7 +254,7 @@ function CartDrawer({
           customer: {
             name: form.name.trim(),
             email: form.email.trim(),
-            phone: form.phone.trim(),
+            phone: phoneDigits,
             address: form.address.trim(),
           },
           items: items.map((item) => ({
@@ -355,8 +369,17 @@ function CartDrawer({
                   required
                   type="tel"
                   name="phone"
+                  inputMode="numeric"
+                  pattern="[0-9]{10}"
+                  maxLength={10}
+                  title="Ingresa 10 dígitos"
                   value={form.phone}
-                  onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      phone: digitsOnly(event.target.value).slice(0, 10),
+                    }))
+                  }
                   className="mt-2 w-full border border-[#111111]/15 bg-transparent px-3 py-3 text-sm text-[#111111] outline-none transition-colors focus:border-[#111111]"
                   autoComplete="tel"
                 />
@@ -527,11 +550,14 @@ function CartDrawer({
 }
 
 function mapProducto(row: Record<string, unknown>): Producto {
+  const stockValue = row.Stock == null ? null : Number(row.Stock)
   return {
+    id: String(row.id ?? ""),
     Nombre: String(row.Nombre ?? ""),
     Beneficio: row.Beneficio == null ? null : String(row.Beneficio),
     Precio: row.Precio as number | string,
     imagen_url: row.imagen_url == null ? null : String(row.imagen_url),
+    Stock: stockValue != null && Number.isFinite(stockValue) ? stockValue : null,
   }
 }
 
@@ -551,7 +577,7 @@ export default function Home() {
 
     supabase
       .from("productos")
-      .select("Nombre, Beneficio, Precio, imagen_url")
+      .select("id, Nombre, Beneficio, Precio, imagen_url, Stock")
       .then(({ data, error }) => {
         if (cancelled) return
         if (error) {
@@ -813,7 +839,7 @@ export default function Home() {
                           : "bg-[#111111] text-white hover:bg-[#8B1E24]"
                       }`}
                     >
-                      {justAdded ? "Añadido ✓" : "Añadir a la bolsa"}
+                      {justAdded ? "AÑADIDO ✓" : "Añadir a la bolsa"}
                     </button>
                   </li>
                 )
